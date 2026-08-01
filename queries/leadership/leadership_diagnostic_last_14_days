@@ -1,0 +1,81 @@
+with base_orders as (
+    select
+        orders.order_id
+      , orders.session_id
+      , orders.created_at
+      , orders.total
+      , customers.country
+      , session_channels.channel
+      , payment_methods.method_name as payment_method
+      , devices.device_type
+    from ecom.orders
+    left join ecom.customers on orders.customer_id = customers.customer_id
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    left join ecom.sessions on orders.session_id = sessions.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    left join ecom.payment_intents on orders.order_id = payment_intents.order_id
+    left join ecom.payment_methods on payment_intents.payment_method_id = payment_methods.payment_method_id
+    where orders.payment_status = 'paid'
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{payment_method}} ]]
+      [[ and {{device_type}} ]]
+      and orders.created_at >= (select max(created_at) from ecom.orders) - interval '14 days'
+)
+
+, base_sessions as (
+    select
+        sessions.session_id
+      , sessions.started_at
+      , customers.country
+      , session_channels.channel
+      , devices.device_type
+    from ecom.sessions
+    left join ecom.customers on sessions.customer_id = customers.customer_id
+    left join ecom.session_channels on sessions.session_id = session_channels.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    where 1=1
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{device_type}} ]]
+      and sessions.started_at >= (select max(created_at) from ecom.orders) - interval '14 days'
+)
+
+, daily_orders as (
+    select
+        date_trunc('day', created_at)::date as day
+      , count(*) as orders
+      , sum(total) as revenue
+    from base_orders
+    group by 1
+)
+
+, daily_sessions as (
+    select
+        date_trunc('day', started_at)::date as day
+      , count(distinct session_id) as sessions
+    from base_sessions
+    group by 1
+)
+
+, daily_refunds as (
+    select
+        date_trunc('day', refunds.created_at)::date as day
+      , count(*) as refunds
+    from ecom.refunds
+    join ecom.orders on refunds.order_id = orders.order_id
+    where orders.created_at >= (select max(created_at) from ecom.orders) - interval '14 days'
+    group by 1
+)
+
+select
+    do_.day
+  , do_.revenue
+  , do_.orders
+  , round(do_.revenue * 1.0 / nullif(do_.orders, 0), 2) as aov
+  , round(do_.orders * 1.0 / nullif(ds.sessions, 0), 4) as conversion_rate
+  , round(coalesce(dr.refunds, 0) * 1.0 / nullif(do_.orders, 0), 4) as refund_rate
+from daily_orders do_
+left join daily_sessions ds on do_.day = ds.day
+left join daily_refunds dr on do_.day = dr.day
+order by do_.day desc;
