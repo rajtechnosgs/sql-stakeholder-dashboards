@@ -8,9 +8,9 @@ behavior). Each has its own PRD with a real stakeholder interview, an
 explicit list of excluded metrics, and a defended design.
 
 ## Metabase Links
-- [Leadership Snapshot](<paste dashboard URL>)
-- [Product Dashboard](<paste dashboard URL>)
-- [Metric Definitions](<paste dashboard URL>)
+- [Leadership Snapshot]https://metabase.topfolio.in/dashboard/46-leadership-snapshot?channel=&country=&date=&device_type=&payment_method=
+- [Product Dashboard]https://metabase.topfolio.in/dashboard/48-product-dashboard?category=&channel=&date=&device_type=
+- [Metric Definitions]https://metabase.topfolio.in/dashboard/49-metric-definitions
 
 ## Executive 1-Pager
 ![Executive Snapshot](screenshots/executive_1_pager.png)
