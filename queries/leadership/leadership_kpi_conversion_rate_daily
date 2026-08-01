@@ -1,0 +1,77 @@
+with base_orders as (
+    select
+        orders.order_id
+      , orders.session_id
+      , orders.created_at
+      , customers.country
+      , session_channels.channel
+      , payment_methods.method_name as payment_method
+      , devices.device_type
+    from ecom.orders
+    left join ecom.customers on orders.customer_id = customers.customer_id
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    left join ecom.sessions on orders.session_id = sessions.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    left join ecom.payment_intents on orders.order_id = payment_intents.order_id
+    left join ecom.payment_methods on payment_intents.payment_method_id = payment_methods.payment_method_id
+    where orders.payment_status = 'paid'
+      [[ and {{date_range_orders}} ]]
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{payment_method}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, base_sessions as (
+    select
+        sessions.session_id
+      , sessions.started_at
+      , customers.country
+      , session_channels.channel
+      , devices.device_type
+    from ecom.sessions
+    left join ecom.customers on sessions.customer_id = customers.customer_id
+    left join ecom.session_channels on sessions.session_id = session_channels.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    where 1=1
+      [[ and {{date_range_sessions}} ]]
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, daily_sessions as (
+    select
+        date_trunc('day', started_at)::date as day
+      , count(distinct session_id) as sessions
+    from base_sessions
+    group by 1
+)
+
+, daily_conversions as (
+    select
+        date_trunc('day', created_at)::date as day
+      , count(distinct session_id) as converted_sessions
+    from base_orders
+    group by 1
+)
+
+, daily_cr as (
+    select
+        ds.day
+      , coalesce(dc.converted_sessions, 0) * 1.0 / nullif(ds.sessions, 0) as cr
+    from daily_sessions ds
+    left join daily_conversions dc on ds.day = dc.day
+)
+
+select
+    day
+  , cr
+  , lag(cr, 7) over (order by day) as cr_7d_ago
+  , round(
+        100.0 * (cr - lag(cr, 7) over (order by day))
+        / nullif(lag(cr, 7) over (order by day), 0)
+      , 2
+    ) as wow_pct_change
+from daily_cr
+order by day;
