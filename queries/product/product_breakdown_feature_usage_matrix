@@ -1,0 +1,31 @@
+with base_wau as (
+    select
+        sessions.customer_id
+    from ecom.sessions
+    left join ecom.session_channels on sessions.session_id = session_channels.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+	left join ecom.customers on sessions.customer_id = customers.customer_id
+    where sessions.started_at >= (select max(created_at) from ecom.orders) - interval '7 days'
+	  [[ and {{date}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{device_type}} ]]
+	  
+)
+
+, wau_count as (
+    select count(distinct customer_id) as total_wau from base_wau
+)
+
+select
+    loyalty_transactions.reason as feature
+  , count(distinct loyalty_transactions.customer_id) as customers_using
+  , round(
+        count(distinct loyalty_transactions.customer_id) * 100.0
+        / nullif((select total_wau from wau_count), 0)
+      , 2
+    ) as pct_of_wau
+from ecom.loyalty_transactions
+join base_wau on loyalty_transactions.customer_id = base_wau.customer_id
+group by 1
+order by pct_of_wau desc
+limit 10;
