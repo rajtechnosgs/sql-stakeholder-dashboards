@@ -1,0 +1,57 @@
+with base_orders as (
+    select
+        orders.order_id
+      , orders.created_at
+      , orders.total
+      , customers.country
+      , session_channels.channel
+      , payment_methods.method_name as payment_method
+      , devices.device_type
+    from ecom.orders
+    left join ecom.customers on orders.customer_id = customers.customer_id
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    left join ecom.sessions on orders.session_id = sessions.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    left join ecom.payment_intents on orders.order_id = payment_intents.order_id
+    left join ecom.payment_methods on payment_intents.payment_method_id = payment_methods.payment_method_id
+    where orders.payment_status = 'paid'
+      [[ and {{date_range_orders}} ]]
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{payment_method}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, current_period as (
+    select
+        coalesce(channel, 'direct') as channel
+      , sum(total) as revenue
+    from base_orders
+    group by 1
+)
+
+, prior_period as (
+    select
+        coalesce(session_channels.channel, 'direct') as channel
+      , sum(orders.total) as revenue_prior
+    from ecom.orders
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    where orders.payment_status = 'paid'
+      and orders.created_at >= (select min(created_at) from base_orders) - interval '7 days'
+      and orders.created_at < (select min(created_at) from base_orders)
+    group by 1
+)
+
+select
+    cp.channel
+  , cp.revenue
+  , coalesce(pp.revenue_prior, 0) as revenue_prior_period
+  , round(
+        100.0 * (cp.revenue - coalesce(pp.revenue_prior, 0))
+        / nullif(pp.revenue_prior, 0)
+      , 2
+    ) as wow_pct_change
+from current_period cp
+left join prior_period pp on cp.channel = pp.channel
+order by cp.revenue desc
+limit 5;
