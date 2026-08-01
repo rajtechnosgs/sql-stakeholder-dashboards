@@ -1,1 +1,25 @@
 
+# SQL Stakeholder Dashboards — Task 3
+
+Two audience-specific analytics products built in Metabase on the `ecom`
+database: a **Leadership Snapshot** (required, founder-facing business
+health) and a **Product Dashboard** (role-specific, PM-facing user
+behavior). Each has its own PRD with a real stakeholder interview, an
+explicit list of excluded metrics, and a defended design.
+
+## Metabase Links
+- [Leadership Snapshot](<paste dashboard URL>)
+- [Product Dashboard](<paste dashboard URL>)
+- [Metric Definitions](<paste dashboard URL>)
+
+## Executive 1-Pager
+![Executive Snapshot](screenshots/executive_1_pager.png)
+
+## Documents
+- [PRD — Leadership Snapshot](prds/leadership_snapshot_prd.md)
+- [PRD — Product Dashboard](prds/product_dashboard_prd.md)
+- [Metric Definitions](METRIC_DEFINITIONS.md)
+- [Anomaly Investigations](ANOMALY_INVESTIGATIONS.md)
+
+## Reflection
+[paste your 5-line reflection here]
