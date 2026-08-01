@@ -1,0 +1,52 @@
+with customer_signups as (
+    select
+        customers.customer_id
+      , customers.created_at as signup_at
+      , date_trunc('week', customers.created_at)::date as cohort_week
+    from ecom.customers
+    where customers.created_at >= '2026-04-19'
+)
+
+, meaningful_sessions as (
+    select distinct
+        sessions.customer_id
+      , sessions.session_id
+      , session_events.occurred_at
+    from ecom.sessions
+    join ecom.session_events on sessions.session_id = session_events.session_id
+    left join ecom.session_channels on sessions.session_id = session_channels.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+	left join ecom.customers on sessions.customer_id = customers.customer_id
+    where session_events.event_type in ('product_view', 'add_to_cart', 'purchase')
+	  [[ and {{date}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, customer_activity_weeks as (
+    select
+        customer_signups.customer_id
+      , customer_signups.cohort_week
+      , greatest(
+            floor(extract(epoch from (meaningful_sessions.occurred_at - customer_signups.signup_at)) / (86400 * 7))
+          , 0
+        ) as week_index
+    from customer_signups
+    left join meaningful_sessions on customer_signups.customer_id = meaningful_sessions.customer_id
+)
+
+select
+    customer_signups.cohort_week
+  , count(distinct customer_signups.customer_id) as cohort_size
+  , count(distinct customer_activity_weeks.customer_id) filter (where customer_activity_weeks.week_index = 1) * 1.0
+        / nullif(count(distinct customer_signups.customer_id), 0) as w1_retention_rate
+  , count(distinct customer_activity_weeks.customer_id) filter (where customer_activity_weeks.week_index = 2) * 1.0
+        / nullif(count(distinct customer_signups.customer_id), 0) as w2_retention_rate
+  , count(distinct customer_activity_weeks.customer_id) filter (where customer_activity_weeks.week_index = 4) * 1.0
+        / nullif(count(distinct customer_signups.customer_id), 0) as w4_retention_rate
+  , count(distinct customer_activity_weeks.customer_id) filter (where customer_activity_weeks.week_index = 8) * 1.0
+        / nullif(count(distinct customer_signups.customer_id), 0) as w8_retention_rate
+from customer_signups
+left join customer_activity_weeks on customer_signups.customer_id = customer_activity_weeks.customer_id
+group by 1
+order by 1;
