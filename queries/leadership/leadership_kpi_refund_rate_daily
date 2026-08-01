@@ -1,0 +1,65 @@
+with base_orders as (
+    select
+        orders.order_id
+      , orders.created_at
+      , customers.country
+      , session_channels.channel
+      , payment_methods.method_name as payment_method
+      , devices.device_type
+    from ecom.orders
+    left join ecom.customers on orders.customer_id = customers.customer_id
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    left join ecom.sessions on orders.session_id = sessions.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    left join ecom.payment_intents on orders.order_id = payment_intents.order_id
+    left join ecom.payment_methods on payment_intents.payment_method_id = payment_methods.payment_method_id
+    where orders.payment_status = 'paid'
+      [[ and {{date_range}} ]]
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{payment_method}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, daily_orders_count as (
+    select
+        date_trunc('day', created_at)::date as day
+      , count(*) as orders
+    from base_orders
+    group by 1
+)
+
+, daily_refunds as (
+    select
+        date_trunc('day', refunds.created_at)::date as day
+      , count(*) as refunds
+    from ecom.refunds
+    join ecom.orders on refunds.order_id = orders.order_id
+    left join ecom.customers on orders.customer_id = customers.customer_id
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    where 1=1
+      [[ and {{date_range}} ]]
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+    group by 1
+)
+
+, refund_rate_calc as (
+    select
+        doc.day
+      , coalesce(dr.refunds, 0) * 1.0 / nullif(doc.orders, 0) as refund_rate
+    from daily_orders_count doc
+    left join daily_refunds dr on doc.day = dr.day
+)
+
+select
+    day
+  , refund_rate
+  , lag(refund_rate, 7) over (order by day) as refund_rate_7d_ago
+  , round(
+        100.0 * (refund_rate - lag(refund_rate, 7) over (order by day))
+        / nullif(lag(refund_rate, 7) over (order by day), 0)
+      , 2
+    ) as wow_pct_change
+from refund_rate_calc
+order by day;
