@@ -1,0 +1,26 @@
+with monthly_order_counts as (
+    select
+        date_trunc('month', orders.created_at)::date as month
+      , orders.customer_id
+      , count(*) as orders_this_month
+    from ecom.orders
+    where orders.payment_status = 'paid'
+    group by 1, 2
+)
+
+, monthly_customers as (
+    select
+        month
+      , count(distinct customer_id) as total_customers
+      , count(distinct customer_id) filter (where orders_this_month >= 3) as power_users
+    from monthly_order_counts
+    group by 1
+)
+
+select
+    month
+  , total_customers
+  , power_users
+  , round(power_users * 100.0 / nullif(total_customers, 0), 2) as power_user_pct
+from monthly_customers
+order by month;
