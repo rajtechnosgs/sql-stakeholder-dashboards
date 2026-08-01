@@ -1,0 +1,52 @@
+
+
+with session_cart_value as (
+    select
+        se.session_id
+      , sum(se.quantity * se.unit_price) as cart_value
+    from ecom.session_events se
+    where se.event_type = 'add_to_cart'
+    group by 1
+)
+
+, session_purchase_flag as (
+    select distinct
+        session_id
+      , 1 as purchased
+    from ecom.session_events
+    where event_type = 'purchase'
+)
+
+, session_buckets as (
+    select
+        scv.session_id
+      , scv.cart_value
+      , case
+            when scv.cart_value < 500                          then '<500'
+            when scv.cart_value between 500 and 1999            then '500-1999'
+            when scv.cart_value between 2000 and 4999           then '2000-4999'
+            when scv.cart_value between 5000 and 14999          then '5000-14999'
+            else '15000+'
+        end as cart_bucket
+      , coalesce(spf.purchased, 0) as purchased
+    from session_cart_value scv
+    left join session_purchase_flag spf on scv.session_id = spf.session_id
+)
+
+select
+    cart_bucket
+  , count(*)                                                              as atc_sessions
+  , sum(purchased)                                                        as purchased_sessions
+  , count(*) - sum(purchased)                                             as abandoned_sessions
+  , (count(*) - sum(purchased)) * 1.0 / nullif(count(*), 0)               as abandonment_rate
+  , sum(cart_value) filter (where purchased = 0)                          as gmv_left_on_table
+from session_buckets
+group by 1
+order by
+    case cart_bucket
+        when '<500' then 1
+        when '500-1999' then 2
+        when '2000-4999' then 3
+        when '5000-14999' then 4
+        when '15000+' then 5
+    end;
