@@ -1,0 +1,43 @@
+with base_orders as (
+    select
+        orders.order_id
+      , orders.created_at
+      , orders.total
+      , customers.country
+      , session_channels.channel
+      , payment_methods.method_name as payment_method
+      , devices.device_type
+    from ecom.orders
+    left join ecom.customers on orders.customer_id = customers.customer_id
+    left join ecom.session_channels on orders.session_id = session_channels.session_id
+    left join ecom.sessions on orders.session_id = sessions.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+    left join ecom.payment_intents on orders.order_id = payment_intents.order_id
+    left join ecom.payment_methods on payment_intents.payment_method_id = payment_methods.payment_method_id
+    where orders.payment_status = 'paid'
+      [[ and {{date_range}} ]]
+      [[ and {{country}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{payment_method}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, daily_aov as (
+    select
+        date_trunc('day', created_at)::date as day
+      , sum(total) * 1.0 / nullif(count(*), 0) as aov
+    from base_orders
+    group by 1
+)
+
+select
+    day
+  , aov
+  , lag(aov, 7) over (order by day) as aov_7d_ago
+  , round(
+        100.0 * (aov - lag(aov, 7) over (order by day))
+        / nullif(lag(aov, 7) over (order by day), 0)
+      , 2
+    ) as wow_pct_change
+from daily_aov
+order by day;
