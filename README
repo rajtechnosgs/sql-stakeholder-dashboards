@@ -22,4 +22,12 @@ explicit list of excluded metrics, and a defended design.
 - [Anomaly Investigations](ANOMALY_INVESTIGATIONS.md)
 
 ## Reflection
-[paste your 5-line reflection here]
+1. What I built and who each one is for: Two audience-specific dashboards — a Leadership Snapshot (daily business-health view for the founder: revenue, orders, AOV, conversion, refund rate) and a Product Dashboard (behavioral view for the PM: activation, funnel, cohort retention, feature usage) — both built on ecom.
+
+2. Hardest design decision: Deciding what to cut from the Product Dashboard. Acquisition channel breakdowns, payment method splits, and refund totals all exist in the data and are easy to add, but the stakeholder interview made clear the PM only cares what happens after users land — those metrics belong to Growth and Ops, not Product, so I left them out and defended the exclusion explicitly in the PRD.
+
+3. Mistake I made and corrected mid-build: I initially wrote Field Filter conditions with explicit table.column = {{variable}} syntax, not realizing Field Filters generate their own condition — this silently broke every filter across five KPI queries until I caught it, fixed the syntax to bare {{variable}}, and removed table aliases so Metabase's generated condition could resolve correctly.
+
+4. What changed about the PRD after the stakeholder interview: The Leadership Snapshot's Refund Rate KPI was almost left as a secondary metric, but the founder's answer to the cost-of-error question — that a missed refund spike is far more expensive than a revenue miscalculation — is why it's pinned at the top of the KPI row instead of buried in a breakdown.
+
+5. What I'd do differently with another week: Build a dynamic "prior period" window for the breakdown charts (Revenue by Country/Channel) instead of the hardcoded 7-day comparison I used, so it correctly matches whatever date range the dashboard filter is set to, rather than always comparing to a fixed 7-day lookback.
