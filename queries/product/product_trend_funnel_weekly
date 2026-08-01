@@ -1,0 +1,48 @@
+with session_step_reached as (
+    select
+        sessions.session_id
+      , date_trunc('week', sessions.started_at)::date as week
+      , max(case
+            when session_events.event_type = 'purchase'        then 4
+            when session_events.event_type = 'begin_checkout'  then 3
+            when session_events.event_type = 'add_to_cart'     then 2
+            when session_events.event_type = 'product_view'    then 1
+            else 0
+        end) as max_step
+    from ecom.sessions
+    join ecom.session_events on sessions.session_id = session_events.session_id
+    left join ecom.session_channels on sessions.session_id = session_channels.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+	left join ecom.customers on sessions.customer_id = customers.customer_id
+    where sessions.started_at >= '2026-04-19'   -- instrumentation launch trap
+	[[ and {{date}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{device_type}} ]]
+    group by 1, 2
+)
+
+select
+    week
+  , count(*) filter (where max_step >= 1) as product_views
+  , count(*) filter (where max_step >= 2) as add_to_cart
+  , count(*) filter (where max_step >= 3) as begin_checkout
+  , count(*) filter (where max_step >= 4) as purchase
+  , round(
+        (count(*) filter (where max_step >= 1) - count(*) filter (where max_step >= 2)) * 100.0
+        / nullif(count(*) filter (where max_step >= 1), 0)
+      , 2
+    ) as drop_at_cart_pct
+  , round(
+        (count(*) filter (where max_step >= 2) - count(*) filter (where max_step >= 3)) * 100.0
+        / nullif(count(*) filter (where max_step >= 2), 0)
+      , 2
+    ) as drop_at_checkout_pct
+  , round(
+        (count(*) filter (where max_step >= 3) - count(*) filter (where max_step >= 4)) * 100.0
+        / nullif(count(*) filter (where max_step >= 3), 0)
+      , 2
+    ) as drop_at_purchase_pct
+from session_step_reached
+where max_step >= 1
+group by 1
+order by 1;
