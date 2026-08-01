@@ -1,0 +1,22 @@
+with base_reviews as (
+    select
+        pr.rating
+      , pr.created_at
+      , c.category_name
+    from ecom.product_reviews pr
+    join ecom.products p 
+        on pr.product_id = p.product_id
+    join ecom.categories c 
+        on p.category_id = c.category_id
+    where 1=1
+      [[ and {{category}} ]]
+)
+
+select
+    date_trunc('month', created_at)::date as month
+  , category_name
+  , round(avg(rating), 2)                 as avg_rating
+  , count(*)                              as review_count
+from base_reviews
+group by 1, 2
+order by 1, 2;
