@@ -1,0 +1,33 @@
+with base_sessions as (
+    select
+        sessions.session_id
+      , sessions.customer_id
+      , sessions.started_at
+    from ecom.sessions
+    left join ecom.session_channels on sessions.session_id = session_channels.session_id
+    left join ecom.devices on sessions.device_id = devices.device_id
+	 left join ecom.customers on sessions.customer_id = customers.customer_id
+	
+    where 1=1
+	   [[ and {{date}} ]]
+      [[ and {{channel}} ]]
+      [[ and {{device_type}} ]]
+)
+
+, reference_date as (
+    select max(started_at)::date as max_day from base_sessions
+)
+
+, metrics as (
+    select
+        (select count(distinct customer_id) from base_sessions, reference_date
+            where started_at::date = reference_date.max_day) as dau
+      , (select count(distinct customer_id) from base_sessions, reference_date
+            where started_at::date > reference_date.max_day - interval '30 days') as mau
+)
+
+select
+    dau
+  , mau
+  , round(dau * 1.0 / nullif(mau, 0), 4) as stickiness_ratio
+from metrics;
